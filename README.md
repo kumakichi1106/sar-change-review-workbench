@@ -12,7 +12,7 @@ Sentinel-1 GRD画像を題材に、SAR画像の取得・可視化からWebアプ
 
 SAR画像の取得・可視化の学習には、宙畑の記事「SAR画像（Sentinel-1）の取得から可視化まで～GEE、STAC編～」を参考にしています。
 
-今後、記事で紹介されているGoogle Earth Engine上のSentinel-1 GRD画像取得・可視化の流れを学習し、その結果をReactアプリケーションで扱う予定です。
+今後、記事で紹介されているGoogle Earth Engine上のSentinel-1 GRD画像取得・可視化の流れを学習し、その結果をアプリケーションで扱う予定です。
 
 ## 方針
 
