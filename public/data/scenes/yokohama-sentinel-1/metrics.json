@@ -1,0 +1,7 @@
+{
+  "threshold": 35,
+  "changedPixels": 114358,
+  "totalPixels": 1441323,
+  "changeRatio": 0.0793,
+  "note": "画像ベースの簡易差分です。本番レベルのSAR変化検知ではありません。"
+}
