@@ -1,4 +1,4 @@
-const sceneBasePath = "/data/scenes/yokohama-sentinel-1";
+const sceneBasePath = `${import.meta.env.BASE_URL}data/scenes/yokohama-sentinel-1`;
 
 const imagePanels = [
   { title: "Before", src: `${sceneBasePath}/before.png` },
