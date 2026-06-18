@@ -97,3 +97,9 @@ yarn build
 ## 画面イメージ
 
 ![アプリ画面](./docs/images/app-screenshot.png)
+
+## 学習ログ
+
+知識不足、調べた内容、現時点の理解は以下に整理しています。
+
+- [Learning Log](./docs/learning.md)
