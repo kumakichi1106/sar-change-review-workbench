@@ -15,14 +15,14 @@ def inspect_geotiff(path: Path) -> None:
         path: 確認対象のGeoTIFFファイルパス。
     """
     with rasterio.open(path) as dataset:
-        print(path)
-        print(dataset.width)
-        print(dataset.height)
-        print(dataset.count)
-        print(dataset.dtypes)
-        print(dataset.crs)
-        print(dataset.bounds)
-        print(dataset.transform)
+        print(f"file: {path}")
+        print(f"width: {dataset.width}")
+        print(f"height: {dataset.height}")
+        print(f"band count: {dataset.count}")
+        print(f"dtype: {dataset.dtypes}")
+        print(f"crs: {dataset.crs}")
+        print(f"bounds: {dataset.bounds}")
+        print(f"transform: {dataset.transform}")
 
         band = dataset.read(1).astype(np.float32)
 
@@ -30,13 +30,12 @@ def inspect_geotiff(path: Path) -> None:
 
     values = band[valid]
 
-    print(values.min())
-    print(values.max())
-    print(values.mean())
-    print(np.percentile(values, 2))
-    print(np.percentile(values, 50))
-    print(np.percentile(values, 98))
-
+    print(f"min: {values.min()}")
+    print(f"max: {values.max()}")
+    print(f"mean: {values.mean()}")
+    print(f"2nd percentile: {np.percentile(values, 2)}")
+    print(f"50th percentile: {np.percentile(values, 50)}")
+    print(f"98th percentile: {np.percentile(values, 98)}")
 
 def main() -> None:
     parser = argparse.ArgumentParser()
