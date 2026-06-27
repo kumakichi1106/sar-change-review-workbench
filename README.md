@@ -8,6 +8,19 @@ Sentinel-1 GRD画像を題材に、SAR画像の取得・可視化からWebアプ
 
 衛星データやSARデータを扱う基本的な流れを学び、自分の強みであるWebアプリケーション開発と接続することを目的に作成しています。
 
+## このリポジトリでやっていること
+
+このリポジトリでは、GEEで取得したSentinel-1 GRD画像をローカルに配置し、PythonでWeb表示用の画像と簡易的な差分結果を生成しています。
+
+大まかな流れは以下です。
+
+1. Google Colab / Google Earth EngineでSentinel-1 GRD画像を取得する
+2. 取得したGeoTIFFを `public/data/scenes/yokohama-sentinel-1/` に配置する
+3. PythonスクリプトでGeoTIFFを読み込み、Web表示用PNGへ変換する
+4. before / after画像の差分から `diff.png` と `mask.png` を生成する
+5. 処理結果の簡易メトリクスを `metrics.json` として出力する
+6. Reactアプリで生成された画像を表示する
+
 ## 学習・実装で参考にした内容
 
 SAR画像の取得・可視化の学習には、宙畑の記事「SAR画像（Sentinel-1）の取得から可視化まで～GEE、STAC編～」を参考にしました。
@@ -49,6 +62,58 @@ SAR画像の取得・可視化の学習には、宙畑の記事「SAR画像（Se
 5. 取得したGeoTIFFをローカル環境に配置する
 6. PythonスクリプトでWeb表示用PNG、差分画像、変化マスク、簡易メトリクスを生成する
 7. React / TypeScriptアプリで処理結果を表示する
+
+## Pythonスクリプトの役割
+
+### `scripts/process_scene_images.py`
+
+GeoTIFF形式の `before.tif` / `after.tif` を読み込み、PNG画像へ変換するスクリプトです。
+
+- `rasterio` でGeoTIFFの1バンド目を読み込む
+- SAR由来の数値を0〜255の8bit画像配列へ変換する
+- `before.png` / `after.png` を生成する
+- before / after の画像差分から `diff.png` を生成する
+- 差分が一定以上の箇所を赤色で示す `mask.png` を生成する
+- `changedPixels` や `changeRatio` を含む `metrics.json` を生成する
+
+画像ベースの簡易的な差分可視化です。
+
+### `scripts/inspect_geotiff.py`
+
+GeoTIFFの中身を確認するためのスクリプトです。
+
+以下のような基本情報を確認します。
+
+- 画像サイズ
+- band数
+- dtype
+- CRS
+- bounds
+- 値の最小値、最大値、平均値
+- パーセンタイル
+
+元データがどのような情報を持っているかを確認するために追加しました。
+
+### `scripts/validate_outputs.py`
+
+`scripts/process_scene_images.py`実行後に、必要な入力ファイルと出力ファイルが揃っているか確認するスクリプトです。
+
+現時点では、GEEで取得したGeoTIFFの配置やPythonスクリプトの実行は手動です。
+そのため、ファイルの置き忘れや生成漏れを確認するために追加しました。
+
+## 生成されるファイル
+
+`public/data/scenes/yokohama-sentinel-1/` には、以下のファイルを配置・生成しています。
+
+| ファイル | 内容 |
+|---|---|
+| `before.tif` | GEEから取得した比較前のSentinel-1画像 |
+| `after.tif` | GEEから取得した比較後のSentinel-1画像 |
+| `before.png` | Web表示用に変換したbefore画像 |
+| `after.png` | Web表示用に変換したafter画像 |
+| `diff.png` | before / after の簡易差分画像 |
+| `mask.png` | 差分が一定以上の箇所を示すマスク画像 |
+| `metrics.json` | 差分結果の簡易メトリクス |
 
 ## 参考資料
 
