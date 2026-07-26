@@ -9,6 +9,13 @@ from PIL import Image
 import rasterio
 
 
+def validate_input_files(before_path: Path, after_path: Path) -> None:
+    if not before_path.exists() or not after_path.exists():
+        raise FileNotFoundError(
+            f"before.tif and after.tif are required in {before_path.parent}"
+        )
+
+
 def load_sar_band_as_uint8(path: Path) -> np.ndarray:
     """GeoTIFFの1バンド目を読み込み、8bit画像配列に変換する。
 
@@ -43,14 +50,30 @@ def load_sar_band_as_uint8(path: Path) -> np.ndarray:
     return np.clip(stretched * 255, 0, 255).astype(np.uint8)
 
 
-def save_grayscale(array: np.ndarray, path: Path) -> None:
-    """8bitのNumPy配列をグレースケールPNGとして保存する。
+def build_shape_warnings(before: np.ndarray, after: np.ndarray) -> list[dict]:
+    if before.shape == after.shape:
+        return []
 
-    Args:
-        array: 0〜255の画素値を持つ2次元配列。
-        path: 保存先のPNGファイルパス。
-    """
-    Image.fromarray(array.astype(np.uint8), mode="L").save(path)
+    return [
+        {
+            "type": "shape_mismatch",
+            "message": "before and after shapes are different. after image was resized to match before image.",
+            "beforeShape": list(before.shape),
+            "afterShape": list(after.shape),
+        }
+    ]
+
+
+def resize_to_match_before(before: np.ndarray, after: np.ndarray) -> np.ndarray:
+    after_image = Image.fromarray(after, mode="L").resize(
+        (before.shape[1], before.shape[0])
+    )
+    return np.asarray(after_image, dtype=np.uint8)
+
+
+def create_diff(before: np.ndarray, after: np.ndarray) -> np.ndarray:
+    """before/after画像の絶対差分を生成する。"""
+    return np.abs(after.astype(np.int16) - before.astype(np.int16)).astype(np.uint8)
 
 
 def create_mask(diff: np.ndarray, threshold: int) -> np.ndarray:
@@ -72,34 +95,92 @@ def create_mask(diff: np.ndarray, threshold: int) -> np.ndarray:
     return rgba
 
 
-def process_scene(scene_dir: Path, threshold: int) -> None:
-    """1つのシーンディレクトリに対して、Web表示用の画像とメトリクスを生成する。
-
-    同じ地域の異なる時期に取得したbefore.tifとafter.tifを想定する。
-    それぞれを表示用PNGへ変換し、画像ベースの差分からdiff.png、mask.png、metrics.jsonを生成する。
-
-    GEEで取得したSentinel-1画像を題材に、処理結果をアプリ上で比較・確認・判断する流れを学ぶための処理。
+def save_grayscale(array: np.ndarray, path: Path) -> None:
+    """8bitのNumPy配列をグレースケールPNGとして保存する。
 
     Args:
-        scene_dir: before.tifとafter.tifが配置されたディレクトリ。
-        threshold: mask.png生成時に使う差分閾値。
+        array: 0〜255の画素値を持つ2次元配列。
+        path: 保存先のPNGファイルパス。
     """
+    Image.fromarray(array.astype(np.uint8), mode="L").save(path)
+
+
+def calculate_metrics(diff: np.ndarray, threshold: int) -> dict:
+    changed_pixels = int((diff >= threshold).sum())
+    total_pixels = int(diff.size)
+    change_ratio = round(changed_pixels / total_pixels, 4)
+
+    return {
+        "threshold": threshold,
+        "changedPixels": changed_pixels,
+        "totalPixels": total_pixels,
+        "changeRatio": change_ratio,
+        "note": "画像ベースの簡易差分です。本番レベルのSAR変化検知ではありません。",
+    }
+
+
+def write_json(path: Path, data: dict) -> None:
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def build_processing_report(
+    scene_dir: Path,
+    before_path: Path,
+    after_path: Path,
+    threshold: int,
+    same_shape: bool,
+    warnings: list[dict],
+    metrics: dict,
+) -> dict:
+    return {
+        "sceneId": scene_dir.name,
+        "inputs": {
+            "before": before_path.name,
+            "after": after_path.name,
+        },
+        "parameters": {
+            "threshold": threshold,
+            "normalization": "percentile_2_98",
+        },
+        "validation": {
+            "sameShape": same_shape,
+            "warnings": warnings,
+        },
+        "outputs": {
+            "beforePng": "before.png",
+            "afterPng": "after.png",
+            "diffPng": "diff.png",
+            "maskPng": "mask.png",
+            "metricsJson": "metrics.json",
+            "processingReportJson": "processing_report.json",
+        },
+        "metrics": {
+            "changedPixels": metrics["changedPixels"],
+            "totalPixels": metrics["totalPixels"],
+            "changeRatio": metrics["changeRatio"],
+        },
+        "note": "画像ベースの簡易差分です。本番レベルのSAR変化検知ではありません。",
+    }
+
+
+def process_scene(scene_dir: Path, threshold: int) -> None:
+    """1つのシーンディレクトリに対して、Web表示用の画像とメトリクスを生成する。"""
     before_path = scene_dir / "before.tif"
     after_path = scene_dir / "after.tif"
 
-    if not before_path.exists() or not after_path.exists():
-        raise FileNotFoundError(f"before.tif and after.tif are required in {scene_dir}")
+    validate_input_files(before_path, after_path)
 
     before = load_sar_band_as_uint8(before_path)
     after = load_sar_band_as_uint8(after_path)
 
-    if before.shape != after.shape:
-        after_image = Image.fromarray(after, mode="L").resize(
-            (before.shape[1], before.shape[0])
-        )
-        after = np.asarray(after_image, dtype=np.uint8)
-    # uint8のまま引き算すると負の値が扱えないため、一度int16へ変換する。
-    diff = np.abs(after.astype(np.int16) - before.astype(np.int16)).astype(np.uint8)
+    same_shape = before.shape == after.shape
+    warnings = build_shape_warnings(before, after)
+
+    if not same_shape:
+        after = resize_to_match_before(before, after)
+
+    diff = create_diff(before, after)
     mask = create_mask(diff, threshold)
 
     save_grayscale(before, scene_dir / "before.png")
@@ -107,19 +188,19 @@ def process_scene(scene_dir: Path, threshold: int) -> None:
     save_grayscale(diff, scene_dir / "diff.png")
     Image.fromarray(mask, mode="RGBA").save(scene_dir / "mask.png")
 
-    changed_pixels = int((diff >= threshold).sum())
-    total_pixels = int(diff.size)
+    metrics = calculate_metrics(diff, threshold)
+    write_json(scene_dir / "metrics.json", metrics)
 
-    metrics = {
-        "threshold": threshold,
-        "changedPixels": changed_pixels,
-        "totalPixels": total_pixels,
-        "changeRatio": round(changed_pixels / total_pixels, 4),
-        "note": "画像ベースの簡易差分です。本番レベルのSAR変化検知ではありません。",
-    }
-
-    with (scene_dir / "metrics.json").open("w", encoding="utf-8") as f:
-        json.dump(metrics, f, ensure_ascii=False, indent=2)
+    processing_report = build_processing_report(
+        scene_dir=scene_dir,
+        before_path=before_path,
+        after_path=after_path,
+        threshold=threshold,
+        same_shape=same_shape,
+        warnings=warnings,
+        metrics=metrics,
+    )
+    write_json(scene_dir / "processing_report.json", processing_report)
 
 
 def main() -> None:
