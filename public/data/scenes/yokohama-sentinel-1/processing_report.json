@@ -1,0 +1,42 @@
+{
+  "sceneId": "yokohama-sentinel-1",
+  "inputs": {
+    "before": "before.tif",
+    "after": "after.tif"
+  },
+  "parameters": {
+    "threshold": 35,
+    "normalization": "percentile_2_98"
+  },
+  "validation": {
+    "sameShape": false,
+    "warnings": [
+      {
+        "type": "shape_mismatch",
+        "message": "before and after shapes are different. after image was resized to match before image.",
+        "beforeShape": [
+          1261,
+          1143
+        ],
+        "afterShape": [
+          1261,
+          1144
+        ]
+      }
+    ]
+  },
+  "outputs": {
+    "beforePng": "before.png",
+    "afterPng": "after.png",
+    "diffPng": "diff.png",
+    "maskPng": "mask.png",
+    "metricsJson": "metrics.json",
+    "processingReportJson": "processing_report.json"
+  },
+  "metrics": {
+    "changedPixels": 114358,
+    "totalPixels": 1441323,
+    "changeRatio": 0.0793
+  },
+  "note": "画像ベースの簡易差分です。本番レベルのSAR変化検知ではありません。"
+}
