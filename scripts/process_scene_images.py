@@ -87,17 +87,31 @@ def process_scene(scene_dir: Path, threshold: int) -> None:
     before_path = scene_dir / "before.tif"
     after_path = scene_dir / "after.tif"
 
+    warnings = []
+
     if not before_path.exists() or not after_path.exists():
         raise FileNotFoundError(f"before.tif and after.tif are required in {scene_dir}")
 
     before = load_sar_band_as_uint8(before_path)
     after = load_sar_band_as_uint8(after_path)
 
-    if before.shape != after.shape:
+    same_shape = before.shape == after.shape
+
+    if not same_shape:
+        warnings.append(
+            {
+                "type": "shape_mismatch",
+                "message": "before and after shapes are different. after image was resized to match before image.",
+                "beforeShape": list(before.shape),
+                "afterShape": list(after.shape),
+            }
+        )
+
         after_image = Image.fromarray(after, mode="L").resize(
             (before.shape[1], before.shape[0])
         )
         after = np.asarray(after_image, dtype=np.uint8)
+
     # uint8のまま引き算すると負の値が扱えないため、一度int16へ変換する。
     diff = np.abs(after.astype(np.int16) - before.astype(np.int16)).astype(np.uint8)
     mask = create_mask(diff, threshold)
@@ -109,17 +123,51 @@ def process_scene(scene_dir: Path, threshold: int) -> None:
 
     changed_pixels = int((diff >= threshold).sum())
     total_pixels = int(diff.size)
+    change_ratio = round(changed_pixels / total_pixels, 4)
 
     metrics = {
         "threshold": threshold,
         "changedPixels": changed_pixels,
         "totalPixels": total_pixels,
-        "changeRatio": round(changed_pixels / total_pixels, 4),
+        "changeRatio": change_ratio,
         "note": "画像ベースの簡易差分です。本番レベルのSAR変化検知ではありません。",
     }
 
     with (scene_dir / "metrics.json").open("w", encoding="utf-8") as f:
         json.dump(metrics, f, ensure_ascii=False, indent=2)
+
+    processing_report = {
+        "sceneId": scene_dir.name,
+        "inputs": {
+            "before": before_path.name,
+            "after": after_path.name,
+        },
+        "parameters": {
+            "threshold": threshold,
+            "normalization": "percentile_2_98",
+        },
+        "validation": {
+            "sameShape": same_shape,
+            "warnings": warnings,
+        },
+        "outputs": {
+            "beforePng": "before.png",
+            "afterPng": "after.png",
+            "diffPng": "diff.png",
+            "maskPng": "mask.png",
+            "metricsJson": "metrics.json",
+            "processingReportJson": "processing_report.json",
+        },
+        "metrics": {
+            "changedPixels": changed_pixels,
+            "totalPixels": total_pixels,
+            "changeRatio": round(changed_pixels / total_pixels, 4),
+        },
+        "note": "画像ベースの簡易差分です。本番レベルのSAR変化検知ではありません。",
+    }
+
+    with (scene_dir / "processing_report.json").open("w", encoding="utf-8") as f:
+        json.dump(processing_report, f, ensure_ascii=False, indent=2)
 
 
 def main() -> None:
