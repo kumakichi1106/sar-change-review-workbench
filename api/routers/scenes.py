@@ -33,8 +33,10 @@ def read_scene_processing_report(scene_id: str) -> ProcessingReportResponse:
     try:
         data = read_scene_json(scene_id, "processing_report.json")
         return ProcessingReportResponse.model_validate(data)
+    
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Scene processing report not found")
+    
     except (ValidationError, ValueError):
         raise HTTPException(
             status_code=500, detail="Scene processing report is invalid"
