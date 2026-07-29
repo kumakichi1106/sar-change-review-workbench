@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import ValidationError
 
 from api.repositories.scenes import list_scene_ids, read_scene_json
-from api.schemas import ScenesResponse, MetricsResponse
+from api.schemas import ScenesResponse, MetricsResponse, ProcessingReportResponse
 
 router = APIRouter(
     prefix="/scenes",
@@ -26,3 +26,16 @@ def read_scene_metrics(scene_id: str) -> MetricsResponse:
 
     except (ValidationError, ValueError):
         raise HTTPException(status_code=500, detail="Scene metrics is invalid")
+
+
+@router.get("/{scene_id}/processing-report", response_model=ProcessingReportResponse)
+def read_scene_processing_report(scene_id: str) -> ProcessingReportResponse:
+    try:
+        data = read_scene_json(scene_id, "processing_report.json")
+        return ProcessingReportResponse.model_validate(data)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Scene processing report not found")
+    except (ValidationError, ValueError):
+        raise HTTPException(
+            status_code=500, detail="Scene processing report is invalid"
+        )
